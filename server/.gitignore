@@ -1,0 +1,4 @@
+# Air temporary build directory and log
+/tmp
+build-errors.log
+.env

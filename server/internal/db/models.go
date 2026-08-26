@@ -190,11 +190,12 @@ type ProxyMapping struct {
 }
 
 type User struct {
-	ID        pgtype.UUID
-	GithubID  pgtype.Text
-	Name      string
-	Email     string
-	Password  pgtype.Text
-	CreatedAt pgtype.Timestamptz
-	UpdatedAt pgtype.Timestamptz
+	ID                pgtype.UUID
+	GithubID          pgtype.Text
+	Name              string
+	Email             string
+	Password          pgtype.Text
+	CreatedAt         pgtype.Timestamptz
+	UpdatedAt         pgtype.Timestamptz
+	GithubAccessToken pgtype.Text
 }

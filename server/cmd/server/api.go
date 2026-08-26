@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/luponetn/launch.io/internal/auth"
 	"github.com/luponetn/launch.io/internal/db"
 )
 
@@ -26,7 +27,11 @@ func (a *App) CreateRouter() *gin.Engine {
 	return router
 }
 
-func SetupRoutes(router *gin.Engine, query *db.Queries) {}
+func (a *App) SetupRoutes(router *gin.Engine, query *db.Queries) {
+	authService := auth.NewService(query, a.Config)
+	authHandler := auth.NewHandler(authService)
+	auth.RegisterRoutes(router, authHandler, a.Config.JWTAccessSecret)
+}
 
 func (a *App) StartServer(router *gin.Engine, query *db.Queries) error {
 	server := &http.Server{
@@ -37,7 +42,7 @@ func (a *App) StartServer(router *gin.Engine, query *db.Queries) error {
 		IdleTimeout:  10 * time.Second,
 	}
 
-	SetupRoutes(router, query)
+	a.SetupRoutes(router, query)
 
 	// Start server in a separate goroutine so
 	// we can listen for shutdown signals.

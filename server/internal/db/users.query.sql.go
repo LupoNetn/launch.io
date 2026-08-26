@@ -12,16 +12,17 @@ import (
 )
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (name, email, password, github_id)
-VALUES ($1, $2, $3, $4)
-RETURNING id, github_id, name, email, password, created_at, updated_at
+INSERT INTO users (name, email, password, github_id, github_access_token)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, github_id, name, email, password, created_at, updated_at, github_access_token
 `
 
 type CreateUserParams struct {
-	Name     string
-	Email    string
-	Password pgtype.Text
-	GithubID pgtype.Text
+	Name              string
+	Email             string
+	Password          pgtype.Text
+	GithubID          pgtype.Text
+	GithubAccessToken pgtype.Text
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
@@ -30,6 +31,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		arg.Email,
 		arg.Password,
 		arg.GithubID,
+		arg.GithubAccessToken,
 	)
 	var i User
 	err := row.Scan(
@@ -40,6 +42,111 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.Password,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.GithubAccessToken,
+	)
+	return i, err
+}
+
+const getUserByEmail = `-- name: GetUserByEmail :one
+SELECT id, github_id, name, email, password, created_at, updated_at, github_access_token FROM users
+WHERE email = $1 LIMIT 1
+`
+
+func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByEmail, email)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.GithubID,
+		&i.Name,
+		&i.Email,
+		&i.Password,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.GithubAccessToken,
+	)
+	return i, err
+}
+
+const getUserByGithubID = `-- name: GetUserByGithubID :one
+SELECT id, github_id, name, email, password, created_at, updated_at, github_access_token FROM users
+WHERE github_id = $1 LIMIT 1
+`
+
+func (q *Queries) GetUserByGithubID(ctx context.Context, githubID pgtype.Text) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByGithubID, githubID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.GithubID,
+		&i.Name,
+		&i.Email,
+		&i.Password,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.GithubAccessToken,
+	)
+	return i, err
+}
+
+const getUserByID = `-- name: GetUserByID :one
+SELECT id, github_id, name, email, password, created_at, updated_at, github_access_token FROM users
+WHERE id = $1 LIMIT 1
+`
+
+func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByID, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.GithubID,
+		&i.Name,
+		&i.Email,
+		&i.Password,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.GithubAccessToken,
+	)
+	return i, err
+}
+
+const updateUserGithub = `-- name: UpdateUserGithub :one
+UPDATE users
+SET name = COALESCE(NULLIF($1::text, ''), name),
+    email = COALESCE(NULLIF($2::text, ''), email),
+    github_id = COALESCE(NULLIF($3::text, ''), github_id),
+    github_access_token = COALESCE(NULLIF($4::text, ''), github_access_token),
+    updated_at = NOW()
+WHERE id = $5
+RETURNING id, github_id, name, email, password, created_at, updated_at, github_access_token
+`
+
+type UpdateUserGithubParams struct {
+	Name              string
+	Email             string
+	GithubID          string
+	GithubAccessToken string
+	ID                pgtype.UUID
+}
+
+func (q *Queries) UpdateUserGithub(ctx context.Context, arg UpdateUserGithubParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUserGithub,
+		arg.Name,
+		arg.Email,
+		arg.GithubID,
+		arg.GithubAccessToken,
+		arg.ID,
+	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.GithubID,
+		&i.Name,
+		&i.Email,
+		&i.Password,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.GithubAccessToken,
 	)
 	return i, err
 }
