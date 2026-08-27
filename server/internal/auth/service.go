@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -23,6 +24,7 @@ type Service interface {
 	HandleGitHubCallback(ctx context.Context, code string) (*AuthResponse, error)
 	RefreshToken(ctx context.Context, refreshToken string) (*AuthResponse, error)
 	GetUserByID(ctx context.Context, userID string) (*UserDTO, error)
+	GetValidGitHubToken(ctx context.Context, userID string) (string, error)
 }
 
 type service struct {
@@ -138,16 +140,19 @@ func (s *service) HandleGitHubCallback(ctx context.Context, code string) (*AuthR
 			emailResp, err := s.client.Do(emailReq)
 			if err == nil {
 				defer emailResp.Body.Close()
-				var emails []GitHubEmail
-				if err := json.NewDecoder(emailResp.Body).Decode(&emails); err == nil {
-					for _, e := range emails {
-						if e.Primary && e.Verified {
-							email = e.Email
-							break
+				emailBodyBytes, err := io.ReadAll(emailResp.Body)
+				if err == nil {
+					var emails []GitHubEmail
+					if err := json.Unmarshal(emailBodyBytes, &emails); err == nil {
+						for _, e := range emails {
+							if e.Primary && e.Verified {
+								email = e.Email
+								break
+							}
 						}
-					}
-					if email == "" && len(emails) > 0 {
-						email = emails[0].Email
+						if email == "" && len(emails) > 0 {
+							email = emails[0].Email
+						}
 					}
 				}
 			}
@@ -166,17 +171,29 @@ func (s *service) HandleGitHubCallback(ctx context.Context, code string) (*AuthR
 	githubIDStr := strconv.FormatInt(ghUser.ID, 10)
 	githubIDPg := pgtype.Text{String: githubIDStr, Valid: true}
 
+	var refreshTokenPg pgtype.Text
+	if tokenResp.RefreshToken != "" {
+		refreshTokenPg = pgtype.Text{String: tokenResp.RefreshToken, Valid: true}
+	}
+
+	var expiresAtPg pgtype.Timestamptz
+	if tokenResp.ExpiresIn > 0 {
+		expiresAtPg = pgtype.Timestamptz{Time: time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second), Valid: true}
+	}
+
 	// 4. Database user lookup or creation
 	var userRecord db.User
 	userRecord, err = s.query.GetUserByGithubID(ctx, githubIDPg)
 	if err == nil {
-		// Existing user: update token and profile
+		// Existing user: update token, refresh token, and profile
 		userRecord, err = s.query.UpdateUserGithub(ctx, db.UpdateUserGithubParams{
-			ID:                userRecord.ID,
-			Name:              name,
-			Email:             email,
-			GithubID:          githubIDStr,
-			GithubAccessToken: tokenResp.AccessToken,
+			ID:                   userRecord.ID,
+			Name:                 name,
+			Email:                email,
+			GithubID:             githubIDStr,
+			GithubAccessToken:    tokenResp.AccessToken,
+			GithubRefreshToken:   tokenResp.RefreshToken,
+			GithubTokenExpiresAt: expiresAtPg,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to update user github token: %w", err)
@@ -187,11 +204,13 @@ func (s *service) HandleGitHubCallback(ctx context.Context, code string) (*AuthR
 		if emailErr == nil {
 			// Update existing user with GitHub ID and Token
 			userRecord, err = s.query.UpdateUserGithub(ctx, db.UpdateUserGithubParams{
-				ID:                existingUser.ID,
-				Name:              name,
-				Email:             email,
-				GithubID:          githubIDStr,
-				GithubAccessToken: tokenResp.AccessToken,
+				ID:                   existingUser.ID,
+				Name:                 name,
+				Email:                email,
+				GithubID:             githubIDStr,
+				GithubAccessToken:    tokenResp.AccessToken,
+				GithubRefreshToken:   tokenResp.RefreshToken,
+				GithubTokenExpiresAt: expiresAtPg,
 			})
 			if err != nil {
 				return nil, fmt.Errorf("failed to update user with github id: %w", err)
@@ -199,11 +218,13 @@ func (s *service) HandleGitHubCallback(ctx context.Context, code string) (*AuthR
 		} else if errors.Is(emailErr, pgx.ErrNoRows) {
 			// Create new user
 			userRecord, err = s.query.CreateUser(ctx, db.CreateUserParams{
-				Name:              name,
-				Email:             email,
-				Password:          pgtype.Text{Valid: false},
-				GithubID:          githubIDPg,
-				GithubAccessToken: pgtype.Text{String: tokenResp.AccessToken, Valid: true},
+				Name:                 name,
+				Email:                email,
+				Password:             pgtype.Text{Valid: false},
+				GithubID:             githubIDPg,
+				GithubAccessToken:    pgtype.Text{String: tokenResp.AccessToken, Valid: true},
+				GithubRefreshToken:   refreshTokenPg,
+				GithubTokenExpiresAt: expiresAtPg,
 			})
 			if err != nil {
 				return nil, fmt.Errorf("failed to create user in database: %w", err)
@@ -283,6 +304,91 @@ func (s *service) GetUserByID(ctx context.Context, userID string) (*UserDTO, err
 
 	dto := userToDTO(userRecord)
 	return &dto, nil
+}
+
+func (s *service) GetValidGitHubToken(ctx context.Context, userID string) (string, error) {
+	var uuidPg pgtype.UUID
+	if err := uuidPg.Scan(userID); err != nil {
+		return "", fmt.Errorf("invalid user id: %w", err)
+	}
+
+	userRecord, err := s.query.GetUserByID(ctx, uuidPg)
+	if err != nil {
+		return "", fmt.Errorf("user not found: %w", err)
+	}
+
+	if !userRecord.GithubAccessToken.Valid || userRecord.GithubAccessToken.String == "" {
+		return "", errors.New("user has no github access token stored")
+	}
+
+	// Check if token is expiring within 5 minutes or already expired
+	isExpiringSoon := userRecord.GithubTokenExpiresAt.Valid && time.Now().Add(5*time.Minute).After(userRecord.GithubTokenExpiresAt.Time)
+	hasRefreshToken := userRecord.GithubRefreshToken.Valid && userRecord.GithubRefreshToken.String != ""
+
+	if isExpiringSoon && hasRefreshToken {
+		// Refresh GitHub access token with GitHub API
+		tokenPayload := map[string]string{
+			"client_id":     s.config.GitHubClientID,
+			"client_secret": s.config.GitHubClientSecret,
+			"grant_type":    "refresh_token",
+			"refresh_token": userRecord.GithubRefreshToken.String,
+		}
+
+		bodyBytesJson, _ := json.Marshal(tokenPayload)
+		req, err := http.NewRequestWithContext(ctx, "POST", "https://github.com/login/oauth/access_token", bytes.NewBuffer(bodyBytesJson))
+		if err != nil {
+			return "", fmt.Errorf("failed to create refresh token request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json")
+
+		resp, err := s.client.Do(req)
+		if err != nil {
+			return "", fmt.Errorf("failed to refresh github token: %w", err)
+		}
+		defer resp.Body.Close()
+
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return "", fmt.Errorf("failed to read refresh response: %w", err)
+		}
+
+		var tokenResp GitHubOAuthTokenResponse
+		if err := json.Unmarshal(respBody, &tokenResp); err != nil {
+			return "", fmt.Errorf("failed to parse refresh token response: %w", err)
+		}
+
+		if tokenResp.Error != "" || tokenResp.AccessToken == "" {
+			return "", fmt.Errorf("github token refresh failed: %s (%s)", tokenResp.Error, tokenResp.ErrorDesc)
+		}
+
+		var newExpiresAtPg pgtype.Timestamptz
+		if tokenResp.ExpiresIn > 0 {
+			newExpiresAtPg = pgtype.Timestamptz{Time: time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second), Valid: true}
+		}
+
+		var newRefreshTokenPg pgtype.Text
+		if tokenResp.RefreshToken != "" {
+			newRefreshTokenPg = pgtype.Text{String: tokenResp.RefreshToken, Valid: true}
+		} else {
+			newRefreshTokenPg = userRecord.GithubRefreshToken
+		}
+
+		// Update database with refreshed tokens
+		userRecord, err = s.query.UpdateUserGitHubTokens(ctx, db.UpdateUserGitHubTokensParams{
+			ID:                   userRecord.ID,
+			GithubAccessToken:    pgtype.Text{String: tokenResp.AccessToken, Valid: true},
+			GithubRefreshToken:   newRefreshTokenPg,
+			GithubTokenExpiresAt: newExpiresAtPg,
+		})
+		if err != nil {
+			return "", fmt.Errorf("failed to update user tokens in database: %w", err)
+		}
+
+		return tokenResp.AccessToken, nil
+	}
+
+	return userRecord.GithubAccessToken.String, nil
 }
 
 func userToDTO(u db.User) UserDTO {
