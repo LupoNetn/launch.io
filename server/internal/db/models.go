@@ -176,6 +176,11 @@ type Project struct {
 	ActiveDeploymentID pgtype.UUID
 	CreatedAt          pgtype.Timestamptz
 	UpdatedAt          pgtype.Timestamptz
+	GithubFullName     string
+	GithubCloneUrl     string
+	DefaultBranch      string
+	Port               pgtype.Int2
+	GithubWebhookID    pgtype.Int8
 }
 
 type ProxyMapping struct {

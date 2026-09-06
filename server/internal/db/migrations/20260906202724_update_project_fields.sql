@@ -1,0 +1,15 @@
+-- +goose Up
+ALTER TABLE projects
+ADD COLUMN IF NOT EXISTS github_full_name TEXT NOT NULL DEFAULT '',
+ADD COLUMN IF NOT EXISTS github_clone_url TEXT NOT NULL DEFAULT '',
+ADD COLUMN IF NOT EXISTS default_branch TEXT NOT NULL DEFAULT '',
+ADD COLUMN IF NOT EXISTS port SMALLINT,
+ADD COLUMN IF NOT EXISTS github_webhook_id BIGINT;
+
+-- +goose Down
+ALTER TABLE projects
+DROP COLUMN IF EXISTS github_full_name,
+DROP COLUMN IF EXISTS github_clone_url,
+DROP COLUMN IF EXISTS default_branch,
+DROP COLUMN IF EXISTS port,
+DROP COLUMN IF EXISTS github_webhook_id;
