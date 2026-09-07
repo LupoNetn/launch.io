@@ -56,3 +56,26 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 	)
 	return i, err
 }
+
+const selectProjectByID = `-- name: SelectProjectByID :one
+SELECT id, user_id, name, active_deployment_id, created_at, updated_at, github_full_name, github_clone_url, default_branch, port, github_webhook_id FROM projects WHERE id = $1
+`
+
+func (q *Queries) SelectProjectByID(ctx context.Context, id pgtype.UUID) (Project, error) {
+	row := q.db.QueryRow(ctx, selectProjectByID, id)
+	var i Project
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.ActiveDeploymentID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.GithubFullName,
+		&i.GithubCloneUrl,
+		&i.DefaultBranch,
+		&i.Port,
+		&i.GithubWebhookID,
+	)
+	return i, err
+}
