@@ -9,3 +9,6 @@ INSERT INTO projects (
     $1, $2, $3, $4, $5
 )
 RETURNING *;
+
+-- name: SelectProjectByID :one
+SELECT * FROM projects WHERE id = $1;
