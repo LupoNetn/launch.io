@@ -17,6 +17,7 @@ import (
 type Service interface {
 	ListRepo(ctx context.Context, userID string) ([]GitHubRepo, error)
 	SelectRepo(ctx context.Context, userID string, req SelectProjectRequest) (string, error)
+	DeployRepo(ctx context.Context, projectID string, userID string) (string, error)
 }
 
 type service struct {
@@ -147,4 +148,41 @@ func (s *service) SelectRepo(ctx context.Context, userID string, req SelectProje
 	}
 
 	return project.ID.String(), nil
+}
+
+func (s *service) DeployRepo(ctx context.Context, projectID string, userID string) (string, error) {
+	var projectIDUUID pgtype.UUID
+	if err := projectIDUUID.Scan(projectID); err != nil {
+		slog.Error("invalid project id", "err", err)
+		return "", fmt.Errorf("invalid project id: %w", err)
+	}
+
+	var userIDUUID pgtype.UUID
+	if err := userIDUUID.Scan(userID); err != nil {
+		slog.Error("invalid user id", "err", err)
+		return "", fmt.Errorf("invalid user id: %w", err)
+	}
+
+	projectRecord, err := s.query.SelectProjectByID(ctx, projectIDUUID)
+	if err != nil {
+		slog.Error("unable to fetch project record by id", "err", err)
+		return "", err
+	}
+
+	if projectRecord.UserID.Bytes != userIDUUID.Bytes {
+		slog.Error("user does not own this project", "project_id", projectID, "user_id", userID)
+		return "", ErrForbidden
+	}
+
+	//create deployment record
+	deploymentRecord, err := s.query.CreateDeployment(ctx, db.CreateDeploymentParams{
+		ProjectID: projectIDUUID,
+		Status:    "queued",
+	})
+	if err != nil {
+		slog.Error("something went wrong", "err", err)
+		return "", err
+	}
+
+	return deploymentRecord.ID.String(), nil
 }

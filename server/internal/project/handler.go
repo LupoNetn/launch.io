@@ -1,6 +1,7 @@
 package project
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -88,4 +89,46 @@ func (h *Handler) SelectRepo(c *gin.Context) {
 	})
 }
 
-func (h *Handler) DeployRepo(c *gin.Context) {}
+func (h *Handler) DeployRepo(c *gin.Context) {
+	userIDVal, exists := c.Get("user_id")
+	if !exists {
+		slog.Error("unauthorized request")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	userID, ok := userIDVal.(string)
+	if !ok {
+		slog.Error("user_id in context is not a string")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "something went wrong"})
+		return
+	}
+
+	projectID := c.Param("id")
+	if projectID == "" {
+		slog.Error("invalid request")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+
+	deploymentID, err := h.service.DeployRepo(c.Request.Context(), projectID, userID)
+	if err != nil {
+		if errors.Is(err, ErrForbidden) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "you do not have permission to deploy this project"})
+			return
+		}
+		slog.Error("failed to deploy repo", "err", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "something went wrong, try again later",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status": "successful",
+		"data": gin.H{
+			"deployment_id": deploymentID,
+			"message":       "project deployment has been queued, build would start in a few minutes",
+		},
+	})
+}
