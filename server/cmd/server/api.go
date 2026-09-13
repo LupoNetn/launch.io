@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/luponetn/launch.io/internal/auth"
+	"github.com/luponetn/launch.io/internal/buildEngine"
 	"github.com/luponetn/launch.io/internal/db"
 	project "github.com/luponetn/launch.io/internal/project"
 )
@@ -33,7 +34,8 @@ func (a *App) SetupRoutes(router *gin.Engine, query *db.Queries) {
 	authHandler := auth.NewHandler(authService)
 	auth.RegisterRoutes(router, authHandler, a.Config.JWTAccessSecret)
 
-	projectService := project.NewService(query, authService)
+	buildEngine := build.NewBuildEngine(query)
+	projectService := project.NewService(query, authService, buildEngine)
 	projectHandler := project.NewHandler(projectService)
 	project.RegisterRoutes(router, projectHandler, a.Config.JWTAccessSecret)
 }

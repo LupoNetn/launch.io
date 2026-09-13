@@ -11,6 +11,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/luponetn/launch.io/internal/auth"
+	"github.com/luponetn/launch.io/internal/buildEngine"
 	"github.com/luponetn/launch.io/internal/db"
 )
 
@@ -23,13 +24,15 @@ type Service interface {
 type service struct {
 	query  *db.Queries
 	auth   auth.Service
+	build  build.BuildEngine
 	client http.Client
 }
 
-func NewService(query *db.Queries, auth auth.Service) Service {
+func NewService(query *db.Queries, auth auth.Service, build build.BuildEngine) Service {
 	return &service{
 		query: query,
 		auth:  auth,
+		build: build,
 		client: http.Client{
 			Timeout: time.Second * 25,
 		},
@@ -181,6 +184,14 @@ func (s *service) DeployRepo(ctx context.Context, projectID string, userID strin
 	})
 	if err != nil {
 		slog.Error("something went wrong", "err", err)
+		return "", err
+	}
+
+	_, err = s.build.Build(ctx, deploymentRecord.ID.String(), projectRecord.GithubCloneUrl, projectRecord.DefaultBranch, func(line string) {
+		slog.Info("build output", "deployment_id", deploymentRecord.ID.String(), "line", line)
+	})
+	if err != nil {
+		slog.Error("failed to build deployment", "deployment_id", deploymentRecord.ID.String(), "err", err)
 		return "", err
 	}
 
