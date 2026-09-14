@@ -11,6 +11,20 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const addDeploymentLogLine = `-- name: AddDeploymentLogLine :exec
+INSERT INTO deployment_logs (deployment_id, line) VALUES ($1, $2)
+`
+
+type AddDeploymentLogLineParams struct {
+	DeploymentID pgtype.UUID
+	Line         string
+}
+
+func (q *Queries) AddDeploymentLogLine(ctx context.Context, arg AddDeploymentLogLineParams) error {
+	_, err := q.db.Exec(ctx, addDeploymentLogLine, arg.DeploymentID, arg.Line)
+	return err
+}
+
 const createDeployment = `-- name: CreateDeployment :one
 INSERT INTO deployments (project_id,status) VALUES ($1,$2)
 RETURNING id, project_id, status, git_branch, image_tag, log_store_path, artifact_path, created_at, updated_at
@@ -36,4 +50,65 @@ func (q *Queries) CreateDeployment(ctx context.Context, arg CreateDeploymentPara
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const getDeploymentLogLines = `-- name: GetDeploymentLogLines :many
+SELECT id, deployment_id, line, created_at FROM deployment_logs WHERE deployment_id = $1 ORDER BY created_at ASC
+`
+
+func (q *Queries) GetDeploymentLogLines(ctx context.Context, deploymentID pgtype.UUID) ([]DeploymentLog, error) {
+	rows, err := q.db.Query(ctx, getDeploymentLogLines, deploymentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DeploymentLog
+	for rows.Next() {
+		var i DeploymentLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.DeploymentID,
+			&i.Line,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const setDeploymentImageTag = `-- name: SetDeploymentImageTag :exec
+UPDATE deployments
+SET image_tag = $2, updated_at = now()
+WHERE id = $1
+`
+
+type SetDeploymentImageTagParams struct {
+	ID       pgtype.UUID
+	ImageTag pgtype.Text
+}
+
+func (q *Queries) SetDeploymentImageTag(ctx context.Context, arg SetDeploymentImageTagParams) error {
+	_, err := q.db.Exec(ctx, setDeploymentImageTag, arg.ID, arg.ImageTag)
+	return err
+}
+
+const updateDeploymentStatus = `-- name: UpdateDeploymentStatus :exec
+UPDATE deployments
+SET status = $2, updated_at = now()
+WHERE id = $1
+`
+
+type UpdateDeploymentStatusParams struct {
+	ID     pgtype.UUID
+	Status DeploymentStatus
+}
+
+func (q *Queries) UpdateDeploymentStatus(ctx context.Context, arg UpdateDeploymentStatusParams) error {
+	_, err := q.db.Exec(ctx, updateDeploymentStatus, arg.ID, arg.Status)
+	return err
 }

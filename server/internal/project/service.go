@@ -180,19 +180,55 @@ func (s *service) DeployRepo(ctx context.Context, projectID string, userID strin
 	//create deployment record
 	deploymentRecord, err := s.query.CreateDeployment(ctx, db.CreateDeploymentParams{
 		ProjectID: projectIDUUID,
-		Status:    "queued",
+		Status:    db.DeploymentStatusQueued,
 	})
 	if err != nil {
 		slog.Error("something went wrong", "err", err)
 		return "", err
 	}
 
-	_, err = s.build.Build(ctx, deploymentRecord.ID.String(), projectRecord.GithubCloneUrl, projectRecord.DefaultBranch, func(line string) {
+	// mark as building
+	if err := s.query.UpdateDeploymentStatus(ctx, db.UpdateDeploymentStatusParams{
+		ID:     deploymentRecord.ID,
+		Status: db.DeploymentStatusBuilding,
+	}); err != nil {
+		slog.Error("failed to update deployment status", "err", err)
+		return deploymentRecord.ID.String(), fmt.Errorf("failed to mark deployment as building: %w", err)
+	}
+
+	imageTag, err := s.build.Build(ctx, deploymentRecord.ID.String(), projectRecord.GithubCloneUrl, projectRecord.DefaultBranch, func(line string) {
+		if insertErr := s.query.AddDeploymentLogLine(ctx, db.AddDeploymentLogLineParams{
+			DeploymentID: deploymentRecord.ID,
+			Line: line,
+		}); insertErr != nil {
+			slog.Error("failed to add deployment log line", "err", insertErr)
+		}
 		slog.Info("build output", "deployment_id", deploymentRecord.ID.String(), "line", line)
 	})
 	if err != nil {
-		slog.Error("failed to build deployment", "deployment_id", deploymentRecord.ID.String(), "err", err)
-		return "", err
+		slog.Error("build failed", "err", err, "deployment_id", deploymentRecord.ID.String())
+		if statusErr := s.query.UpdateDeploymentStatus(ctx, db.UpdateDeploymentStatusParams{
+			ID:     deploymentRecord.ID,
+			Status: db.DeploymentStatusFailed,
+		}); statusErr != nil {
+			slog.Error("failed to mark deployment as failed", "err", statusErr, "deployment_id", deploymentRecord.ID.String())
+			return deploymentRecord.ID.String(), fmt.Errorf("build failed: %w; failed to mark deployment as failed: %v", err, statusErr)
+		}
+		return deploymentRecord.ID.String(), fmt.Errorf("build failed: %w", err)
+	}
+
+	if err := s.query.SetDeploymentImageTag(ctx, db.SetDeploymentImageTagParams{
+		ID:       deploymentRecord.ID,
+		ImageTag: pgtype.Text{String: imageTag, Valid: true},
+	}); err != nil {
+		slog.Error("failed to set image tag", "err", err)
+		if statusErr := s.query.UpdateDeploymentStatus(ctx, db.UpdateDeploymentStatusParams{
+			ID:     deploymentRecord.ID,
+			Status: db.DeploymentStatusFailed,
+		}); statusErr != nil {
+			slog.Error("failed to mark deployment as failed", "err", statusErr, "deployment_id", deploymentRecord.ID.String())
+		}
+		return deploymentRecord.ID.String(), fmt.Errorf("failed to set deployment image tag: %w", err)
 	}
 
 	return deploymentRecord.ID.String(), nil

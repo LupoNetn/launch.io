@@ -58,6 +58,9 @@ func (b *buildEngine) runRailpackBuild(ctx context.Context, clonePath, imageTag 
 	for scanner.Scan() {
 		onLogLine(scanner.Text())
 	}
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("error reading railpack output: %w", err)
+	}
 
 	if err := cmd.Wait(); err != nil {
 		return fmt.Errorf("railpack exited with error: %w", err)

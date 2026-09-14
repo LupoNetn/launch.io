@@ -152,6 +152,13 @@ type Deployment struct {
 	UpdatedAt    pgtype.Timestamptz
 }
 
+type DeploymentLog struct {
+	ID           int64
+	DeploymentID pgtype.UUID
+	Line         string
+	CreatedAt    pgtype.Timestamptz
+}
+
 type Domain struct {
 	ID         pgtype.UUID
 	ProjectID  pgtype.UUID
