@@ -1,13 +1,14 @@
 package build
 
 import (
-	"bufio" // Added missing import
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/luponetn/launch.io/internal/db"
 )
@@ -39,7 +40,32 @@ func (b *buildEngine) CloneRepo(ctx context.Context, cloneURL, branch, clonePath
 	return nil
 }
 
+func ensureBuildkit(ctx context.Context) error {
+	inspect := exec.CommandContext(ctx, "docker", "container", "inspect", "buildkit")
+	if inspect.Run() == nil {
+		start := exec.CommandContext(ctx, "docker", "start", "buildkit")
+		if out, err := start.CombinedOutput(); err != nil {
+			return fmt.Errorf("failed to start existing buildkit container: %w: %s", err, strings.TrimSpace(string(out)))
+		}
+		return nil
+	}
+
+	run := exec.CommandContext(ctx, "docker", "run", "--rm", "--privileged", "-d", "--name", "buildkit", "moby/buildkit")
+	out, err := run.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to start buildkit container: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	if len(strings.TrimSpace(string(out))) == 0 {
+		return fmt.Errorf("buildkit container started without a container id")
+	}
+	return nil
+}
+
 func (b *buildEngine) runRailpackBuild(ctx context.Context, clonePath, imageTag string, onLogLine func(string)) error {
+	if err := ensureBuildkit(ctx); err != nil {
+		return err
+	}
+
 	cmd := exec.CommandContext(ctx, "railpack", "build", clonePath, "--name", imageTag, "--progress", "plain")
 
 	cmd.Env = append(os.Environ(), "BUILDKIT_HOST=docker-container://buildkit")

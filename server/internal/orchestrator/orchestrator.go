@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/network"
 	"github.com/moby/moby/client"
 )
 
@@ -46,13 +47,21 @@ func (o *orchestrator) Run(ctx context.Context, projectID, deploymentID, buildIm
 		}
 	}
 
+	hostPort := network.Port("3000/tcp")
 	createResp, err := o.client.ContainerCreate(ctx, client.ContainerCreateOptions{
 		Name: containerName,
 		Config: &container.Config{
 			Image: buildImage,
+			Env: []string{"PORT=3000"},
+			ExposedPorts: network.PortSet{hostPort: struct{}{}},
 			Labels: map[string]string{
 				"launchio.project_id":    projectID,
 				"launchio.deployment_id": deploymentID,
+			},
+		},
+		HostConfig: &container.HostConfig{
+			PortBindings: network.PortMap{
+				hostPort: []network.PortBinding{{HostIP: "0.0.0.0", HostPort: "3000"}},
 			},
 		},
 	})
