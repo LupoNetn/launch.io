@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/netip"
 
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/network"
@@ -47,12 +48,12 @@ func (o *orchestrator) Run(ctx context.Context, projectID, deploymentID, buildIm
 		}
 	}
 
-	hostPort := network.Port("3000/tcp")
+	hostPort := network.MustParsePort("3000/tcp")
 	createResp, err := o.client.ContainerCreate(ctx, client.ContainerCreateOptions{
 		Name: containerName,
 		Config: &container.Config{
-			Image: buildImage,
-			Env: []string{"PORT=3000"},
+			Image:        buildImage,
+			Env:          []string{"PORT=3000"},
 			ExposedPorts: network.PortSet{hostPort: struct{}{}},
 			Labels: map[string]string{
 				"launchio.project_id":    projectID,
@@ -61,7 +62,7 @@ func (o *orchestrator) Run(ctx context.Context, projectID, deploymentID, buildIm
 		},
 		HostConfig: &container.HostConfig{
 			PortBindings: network.PortMap{
-				hostPort: []network.PortBinding{{HostIP: "0.0.0.0", HostPort: "3000"}},
+				hostPort: []network.PortBinding{{HostIP: netip.MustParseAddr("0.0.0.0"), HostPort: "3000"}},
 			},
 		},
 	})

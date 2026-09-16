@@ -52,7 +52,7 @@ func (a *App) StartServer(router *gin.Engine, query *db.Queries) error {
 		Addr:         ":" + a.Config.Port,
 		Handler:      router,
 		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		WriteTimeout: 15 * time.Minute,
 		IdleTimeout:  10 * time.Second,
 	}
 
