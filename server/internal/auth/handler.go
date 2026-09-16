@@ -39,8 +39,8 @@ func (h *Handler) GitHubCallback(c *gin.Context) {
 	}
 
 	state := c.Query("state")
-	savedState, _ := c.Cookie("oauth_state")
-	if state != "" && savedState != "" && state != savedState {
+	savedState, err := c.Cookie("oauth_state")
+	if err != nil || state == "" || savedState == "" || state != savedState {
 		c.JSON(http.StatusForbidden, gin.H{"error": "invalid oauth state token"})
 		return
 	}

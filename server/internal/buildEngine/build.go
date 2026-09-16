@@ -41,8 +41,12 @@ func (b *buildEngine) CloneRepo(ctx context.Context, cloneURL, branch, clonePath
 }
 
 func ensureBuildkit(ctx context.Context) error {
-	inspect := exec.CommandContext(ctx, "docker", "container", "inspect", "buildkit")
-	if inspect.Run() == nil {
+	inspect := exec.CommandContext(ctx, "docker", "container", "inspect", "--format", "{{.State.Running}}", "buildkit")
+	inspectOutput, inspectErr := inspect.Output()
+	if inspectErr == nil && strings.TrimSpace(string(inspectOutput)) == "true" {
+		return nil
+	}
+	if inspectErr == nil {
 		start := exec.CommandContext(ctx, "docker", "start", "buildkit")
 		if out, err := start.CombinedOutput(); err != nil {
 			return fmt.Errorf("failed to start existing buildkit container: %w: %s", err, strings.TrimSpace(string(out)))
@@ -82,7 +86,9 @@ func (b *buildEngine) runRailpackBuild(ctx context.Context, clonePath, imageTag 
 
 	scanner := bufio.NewScanner(stdOut)
 	for scanner.Scan() {
-		onLogLine(scanner.Text())
+		if onLogLine != nil {
+			onLogLine(scanner.Text())
+		}
 	}
 	if err := scanner.Err(); err != nil {
 		return fmt.Errorf("error reading railpack output: %w", err)
@@ -98,8 +104,11 @@ func (b *buildEngine) runRailpackBuild(ctx context.Context, clonePath, imageTag 
 func (b *buildEngine) Build(ctx context.Context, deploymentID, cloneURL, branch string, onLogLine func(string)) (string, error) {
 	clonePath := filepath.Join(os.TempDir(), "launchio-builds", deploymentID)
 
+	if err := os.RemoveAll(clonePath); err != nil {
+		return "", fmt.Errorf("failed to clean clone dir: %w", err)
+	}
 	if err := os.MkdirAll(clonePath, 0755); err != nil {
-		return "", fmt.Errorf("failed to create clone dir: %w", err) // Fixed empty spaces string " " to standard clean empty string ""
+		return "", fmt.Errorf("failed to create clone dir: %w", err)
 	}
 	defer os.RemoveAll(clonePath) // cleanup happens no matter how this function returns
 

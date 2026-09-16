@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/netip"
+	"strconv"
 
 	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/network"
@@ -12,7 +13,7 @@ import (
 )
 
 type Orchestrator interface {
-	Run(ctx context.Context, projectID, deploymentID, buildImage string) (string, error)
+	Run(ctx context.Context, projectID, deploymentID, buildImage string) (string, int, error)
 }
 
 type orchestrator struct {
@@ -32,19 +33,19 @@ func NewOrchestrator(ctx context.Context) (Orchestrator, error) {
 	}, nil
 }
 
-func (o *orchestrator) Run(ctx context.Context, projectID, deploymentID, buildImage string) (string, error) {
+func (o *orchestrator) Run(ctx context.Context, projectID, deploymentID, buildImage string) (string, int, error) {
 	containerName := fmt.Sprintf("launchio-%s", projectID)
 	containers, err := o.client.ContainerList(ctx, client.ContainerListOptions{
 		All:     true,
 		Filters: client.Filters{}.Add("name", containerName),
 	})
 	if err != nil {
-		return "", fmt.Errorf("unable to find existing project container: %w", err)
+		return "", 0, fmt.Errorf("unable to find existing project container: %w", err)
 	}
 
 	for _, existing := range containers.Items {
 		if _, err := o.client.ContainerRemove(ctx, existing.ID, client.ContainerRemoveOptions{Force: true}); err != nil {
-			return "", fmt.Errorf("unable to remove existing project container: %w", err)
+			return "", 0, fmt.Errorf("unable to remove existing project container: %w", err)
 		}
 	}
 
@@ -62,23 +63,39 @@ func (o *orchestrator) Run(ctx context.Context, projectID, deploymentID, buildIm
 		},
 		HostConfig: &container.HostConfig{
 			PortBindings: network.PortMap{
-				hostPort: []network.PortBinding{{HostIP: netip.MustParseAddr("0.0.0.0"), HostPort: "3000"}},
+				hostPort: []network.PortBinding{{HostIP: netip.MustParseAddr("0.0.0.0"), HostPort: ""}},
 			},
 		},
 	})
 	if err != nil {
-		return "", fmt.Errorf("unable to create container: %w", err)
+		return "", 0, fmt.Errorf("unable to create container: %w", err)
 	}
 
 	if _, err := o.client.ContainerStart(ctx, createResp.ID, client.ContainerStartOptions{}); err != nil {
 		_, _ = o.client.ContainerRemove(ctx, createResp.ID, client.ContainerRemoveOptions{Force: true})
-		return "", fmt.Errorf("unable to start container: %w", err)
+		return "", 0, fmt.Errorf("unable to start container: %w", err)
 	}
+
+	inspectResult, err := o.client.ContainerInspect(ctx, createResp.ID, client.ContainerInspectOptions{})
+	if err != nil {
+		return "", 0, fmt.Errorf("unable to inspect container: %w", err)
+	}
+
+	bindings, ok := inspectResult.Container.NetworkSettings.Ports[hostPort]
+	if !ok || len(bindings) == 0 || bindings[0].HostPort == "" {
+		return "", 0, fmt.Errorf("container port %s is not bound", hostPort)
+	}
+	hostPortNumber, err := strconv.Atoi(bindings[0].HostPort)
+	if err != nil {
+		return "", 0, fmt.Errorf("unable to parse container host port %q: %w", bindings[0].HostPort, err)
+	}
+
 	slog.Info(
 		"container started",
 		"id", createResp.ID,
 		"project_id", projectID,
 		"deployment_id", deploymentID,
 	)
-	return createResp.ID, nil
+
+	return createResp.ID, hostPortNumber, nil
 }

@@ -94,6 +94,9 @@ func (s *service) HandleGitHubCallback(ctx context.Context, code string) (*AuthR
 	if err := json.Unmarshal(bodyBytes, &tokenResp); err != nil {
 		return nil, fmt.Errorf("failed to parse github token response: %w", err)
 	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return nil, fmt.Errorf("github token exchange returned HTTP %d", resp.StatusCode)
+	}
 
 	if tokenResp.Error != "" {
 		return nil, fmt.Errorf("github oauth error: %s (%s)", tokenResp.Error, tokenResp.ErrorDesc)
@@ -126,6 +129,9 @@ func (s *service) HandleGitHubCallback(ctx context.Context, code string) (*AuthR
 	var ghUser GitHubUser
 	if err := json.Unmarshal(userBodyBytes, &ghUser); err != nil {
 		return nil, fmt.Errorf("failed to parse github user profile: %w", err)
+	}
+	if userResp.StatusCode < http.StatusOK || userResp.StatusCode >= http.StatusMultipleChoices {
+		return nil, fmt.Errorf("github user lookup returned HTTP %d", userResp.StatusCode)
 	}
 
 	// 3. If primary email is empty, fetch user emails

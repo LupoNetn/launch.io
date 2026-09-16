@@ -128,7 +128,7 @@ func (h *Handler) DeployRepo(c *gin.Context) {
 		"status": "successful",
 		"data": gin.H{
 			"deployment_id": deploymentID,
-			"message":       "project deployment has been queued, build would start in a few minutes",
+			"message":       "project deployment has been built successfully",
 		},
 	})
 }

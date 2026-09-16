@@ -3,16 +3,19 @@ package project
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/luponetn/launch.io/internal/auth"
-	"github.com/luponetn/launch.io/internal/buildEngine"
+	build "github.com/luponetn/launch.io/internal/buildEngine"
 	"github.com/luponetn/launch.io/internal/db"
 	"github.com/luponetn/launch.io/internal/orchestrator"
+	"github.com/luponetn/launch.io/internal/utils"
 )
 
 type Service interface {
@@ -31,10 +34,10 @@ type service struct {
 
 func NewService(query *db.Queries, authService auth.Service, buildEngine build.BuildEngine, containerOrchestrator orchestrator.Orchestrator) Service {
 	return &service{
-		query: query,
-		auth: authService,
-		build: buildEngine,
-		run: containerOrchestrator,
+		query:  query,
+		auth:   authService,
+		build:  buildEngine,
+		run:    containerOrchestrator,
 		client: http.Client{Timeout: 25 * time.Second},
 	}
 }
@@ -112,6 +115,20 @@ func (s *service) SelectRepo(ctx context.Context, userID string, req SelectProje
 	if err != nil {
 		return "", fmt.Errorf("failed to create project: %w", err)
 	}
+
+	subdomain := utils.GenerateSubdomain(projectRecord.GithubFullName)
+	hostname := subdomain + ".launch.io"
+
+	_, err = s.query.CreateDomain(ctx, db.CreateDomainParams{
+		ProjectID:  projectRecord.ID,
+		DomainName: hostname,
+		Type:       db.DomainNameTypeSystemGenerated,
+	})
+	if err != nil {
+		slog.Error("failed to create domain", "err", err)
+		return "", fmt.Errorf("failed to create domain: %w", err)
+	}
+
 	return projectRecord.ID.String(), nil
 }
 
@@ -123,13 +140,22 @@ func (s *service) DeployRepo(ctx context.Context, projectID, userID string) (str
 	if err := userUUID.Scan(userID); err != nil {
 		return "", fmt.Errorf("invalid user id: %w", err)
 	}
-
 	projectRecord, err := s.query.SelectProjectByID(ctx, projectUUID)
 	if err != nil {
 		return "", err
 	}
 	if projectRecord.UserID.Bytes != userUUID.Bytes {
 		return "", ErrForbidden
+	}
+
+	hostname := utils.GenerateSubdomain(projectRecord.GithubFullName) + ".launch.io"
+	if _, err := s.query.GetDomainByHostname(ctx, hostname); err != nil {
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return "", fmt.Errorf("failed to look up project domain: %w", err)
+		}
+		if _, err := s.query.CreateDomain(ctx, db.CreateDomainParams{ProjectID: projectRecord.ID, DomainName: hostname, Type: db.DomainNameTypeSystemGenerated}); err != nil {
+			return "", fmt.Errorf("failed to create project domain: %w", err)
+		}
 	}
 
 	deployment, err := s.query.CreateDeployment(ctx, db.CreateDeploymentParams{ProjectID: projectUUID, Status: db.DeploymentStatusQueued})
@@ -139,7 +165,6 @@ func (s *service) DeployRepo(ctx context.Context, projectID, userID string) (str
 	if err := s.query.UpdateDeploymentStatus(ctx, db.UpdateDeploymentStatusParams{ID: deployment.ID, Status: db.DeploymentStatusBuilding}); err != nil {
 		return deployment.ID.String(), fmt.Errorf("failed to mark deployment as building: %w", err)
 	}
-
 	imageTag, err := s.build.Build(ctx, deployment.ID.String(), projectRecord.GithubCloneUrl, projectRecord.DefaultBranch, func(line string) {
 		if logErr := s.query.AddDeploymentLogLine(ctx, db.AddDeploymentLogLineParams{DeploymentID: deployment.ID, Line: line}); logErr != nil {
 			slog.Error("failed to add deployment log line", "err", logErr)
@@ -153,12 +178,22 @@ func (s *service) DeployRepo(ctx context.Context, projectID, userID string) (str
 		_ = s.query.UpdateDeploymentStatus(ctx, db.UpdateDeploymentStatusParams{ID: deployment.ID, Status: db.DeploymentStatusFailed})
 		return deployment.ID.String(), fmt.Errorf("failed to set deployment image tag: %w", err)
 	}
-	if _, err := s.run.Run(ctx, projectRecord.ID.String(), deployment.ID.String(), imageTag); err != nil {
+	containerID, hostPort, err := s.run.Run(ctx, projectRecord.ID.String(), deployment.ID.String(), imageTag)
+	if err != nil {
 		_ = s.query.UpdateDeploymentStatus(ctx, db.UpdateDeploymentStatusParams{ID: deployment.ID, Status: db.DeploymentStatusFailed})
 		return deployment.ID.String(), fmt.Errorf("failed to start deployment container: %w", err)
 	}
 	if err := s.query.UpdateDeploymentStatus(ctx, db.UpdateDeploymentStatusParams{ID: deployment.ID, Status: db.DeploymentStatusRunning}); err != nil {
 		return deployment.ID.String(), fmt.Errorf("failed to mark deployment as running: %w", err)
+	}
+	if _, err := s.query.CreateProxyMapping(ctx, db.CreateProxyMappingParams{
+		ProjectID:    projectRecord.ID,
+		ContainerID:  pgtype.Text{String: containerID, Valid: true},
+		AssignedPort: pgtype.Text{String: fmt.Sprintf("%d", hostPort), Valid: true},
+		HealthStatus: db.NullHealthStatus{HealthStatus: db.HealthStatusActive, Valid: true},
+	}); err != nil {
+		_ = s.query.UpdateDeploymentStatus(ctx, db.UpdateDeploymentStatusParams{ID: deployment.ID, Status: db.DeploymentStatusFailed})
+		return deployment.ID.String(), fmt.Errorf("failed to create proxy mapping: %w", err)
 	}
 	return deployment.ID.String(), nil
 }
