@@ -38,7 +38,8 @@ export default function DashboardShell() {
   const [deploymentId, setDeploymentId] = useState('');
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId) ?? null;
-  const deploymentLogs = useDeploymentLogs(token, selectedProjectId, deploymentId);
+  const activeDeploymentId = deploymentId || selectedProject?.activeDeploymentId || '';
+  const deploymentLogs = useDeploymentLogs(token, selectedProjectId, activeDeploymentId);
 
   const visibleProjects = useMemo(
     () =>
@@ -182,7 +183,7 @@ export default function DashboardShell() {
                 view={view}
                 deploying={deploying}
                 deployMessage={deployMessage}
-                deploymentId={deploymentId}
+                deploymentId={activeDeploymentId}
                 deploymentLogs={deploymentLogs}
                 error={error}
                 onDeploy={handleDeploy}

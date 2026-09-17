@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
+
 import {
   Code2,
   ExternalLink,
@@ -165,23 +167,67 @@ export function ProjectView({
   );
 }
 
-function LogsPanel({ deploymentId, logs, loading }: { deploymentId: string; logs: DeploymentLog[]; loading: boolean }) {
+function LogsPanel({
+  deploymentId,
+  logs,
+  loading,
+}: {
+  deploymentId: string;
+  logs: DeploymentLog[];
+  loading: boolean;
+}) {
+  const containerRef = useRef<HTMLPreElement>(null);
+
+  useEffect(() => {
+    if (containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }
+  }, [logs]);
+
   return (
     <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#080910]">
       <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
         <div>
           <h2 className="text-sm font-bold text-white">Deployment Logs</h2>
           <p className="mt-1 text-xs text-white/40">
-            {deploymentId ? `Deployment ${deploymentId.slice(0, 8)} · polling every second` : 'Deploy a project to watch build output.'}
+            {deploymentId
+              ? `Deployment ${deploymentId.slice(0, 8)} · live log stream`
+              : 'Deploy a project to watch build output.'}
           </p>
         </div>
-        <span className={`flex items-center gap-2 text-xs ${loading ? 'text-amber-300' : 'text-emerald-300'}`}>
-          <span className={`h-2 w-2 rounded-full ${loading ? 'animate-pulse bg-amber-300' : 'bg-emerald-300'}`} />
+        <span
+          className={`flex items-center gap-2 text-xs font-medium ${
+            loading ? 'text-amber-300' : 'text-emerald-300'
+          }`}
+        >
+          <span
+            className={`h-2 w-2 rounded-full ${
+              loading ? 'animate-pulse bg-amber-300' : 'bg-emerald-300'
+            }`}
+          />
           {loading ? 'Building' : 'Ready'}
         </span>
       </div>
-      <pre className="max-h-[520px] min-h-[300px] overflow-auto p-5 font-mono text-xs leading-6 text-white/70">
-        {logs.length ? logs.map((log) => <div key={log.id}><span className="mr-3 select-none text-white/25">{String(log.id).padStart(4, '0')}</span>{log.line}</div>) : <span className="text-white/30">{loading ? 'Waiting for build output...' : 'No logs yet.'}</span>}
+      <pre
+        ref={containerRef}
+        className="max-h-[520px] min-h-[320px] overflow-auto p-5 font-mono text-xs leading-6 text-white/80 space-y-0.5"
+      >
+        {logs.length > 0 ? (
+          logs.map((log, index) => (
+            <div key={`log-${log.id || index}`} className="flex items-start">
+              <span className="mr-4 w-10 shrink-0 select-none text-right font-mono text-[11px] text-white/25">
+                {String(index + 1).padStart(4, '0')}
+              </span>
+              <span className="font-mono text-white/80 whitespace-pre-wrap flex-1">
+                {log.line}
+              </span>
+            </div>
+          ))
+        ) : (
+          <div className="flex items-center justify-center py-20 text-white/35 font-sans text-xs">
+            {loading ? 'Waiting for build log output...' : 'No deployment logs recorded yet.'}
+          </div>
+        )}
       </pre>
     </div>
   );

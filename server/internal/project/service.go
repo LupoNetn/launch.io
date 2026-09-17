@@ -195,15 +195,20 @@ func (s *service) runDeployment(ctx context.Context, deploymentID pgtype.UUID, p
 	}
 	if err := s.query.SetDeploymentImageTag(ctx, db.SetDeploymentImageTagParams{ID: deploymentID, ImageTag: pgtype.Text{String: imageTag, Valid: true}}); err != nil {
 		slog.Error("failed to persist deployment image", "deployment_id", deploymentID.String(), "err", err)
+		onLogLine(fmt.Sprintf("[launch.io] ERROR: Failed to persist deployment image: %v", err))
 		_ = s.query.UpdateDeploymentStatus(ctx, db.UpdateDeploymentStatusParams{ID: deploymentID, Status: db.DeploymentStatusFailed})
 		return
 	}
+
+	onLogLine("[launch.io] Image build step finished. Initializing container runtime...")
 	containerID, hostPort, err := s.run.Run(ctx, projectRecord.ID.String(), deploymentID.String(), imageTag)
 	if err != nil {
 		slog.Error("failed to start deployment container", "deployment_id", deploymentID.String(), "err", err)
+		onLogLine(fmt.Sprintf("[launch.io] ERROR: Failed to start container runtime: %v", err))
 		_ = s.query.UpdateDeploymentStatus(ctx, db.UpdateDeploymentStatusParams{ID: deploymentID, Status: db.DeploymentStatusFailed})
 		return
 	}
+
 	if _, err := s.query.CreateProxyMapping(ctx, db.CreateProxyMappingParams{
 		ProjectID:    projectRecord.ID,
 		ContainerID:  pgtype.Text{String: containerID, Valid: true},
@@ -211,12 +216,15 @@ func (s *service) runDeployment(ctx context.Context, deploymentID pgtype.UUID, p
 		HealthStatus: db.NullHealthStatus{HealthStatus: db.HealthStatusActive, Valid: true},
 	}); err != nil {
 		slog.Error("failed to create proxy mapping", "deployment_id", deploymentID.String(), "err", err)
+		onLogLine(fmt.Sprintf("[launch.io] ERROR: Failed to configure proxy mapping: %v", err))
 		_ = s.query.UpdateDeploymentStatus(ctx, db.UpdateDeploymentStatusParams{ID: deploymentID, Status: db.DeploymentStatusFailed})
 		return
 	}
+
 	if err := s.query.UpdateDeploymentStatus(ctx, db.UpdateDeploymentStatusParams{ID: deploymentID, Status: db.DeploymentStatusRunning}); err != nil {
 		slog.Error("failed to mark deployment as running", "deployment_id", deploymentID.String(), "err", err)
 	}
+	onLogLine(fmt.Sprintf("[launch.io] Container running on port %d. Deployment is live and healthy!", hostPort))
 }
 
 func (s *service) GetDeploymentLogs(ctx context.Context, projectID, deploymentID, userID string) ([]db.DeploymentLog, error) {
