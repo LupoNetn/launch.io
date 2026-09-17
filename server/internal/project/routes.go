@@ -12,4 +12,5 @@ func RegisterRoutes(router *gin.Engine, h *Handler, jwtSecret string) {
 	projectGroup.GET("/list-repo", middleware.AuthMiddleware(jwtSecret), h.ListRepo)
 	projectGroup.POST("/", middleware.AuthMiddleware(jwtSecret), h.SelectRepo)
 	projectGroup.POST("/:id/deploy", middleware.AuthMiddleware(jwtSecret), h.DeployRepo)
+	projectGroup.GET("/:id/deployments/:deploymentId/logs", middleware.AuthMiddleware(jwtSecret), h.GetDeploymentLogs)
 }

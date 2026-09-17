@@ -144,11 +144,44 @@ func (h *Handler) DeployRepo(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	c.JSON(http.StatusAccepted, gin.H{
 		"status": "successful",
 		"data": gin.H{
 			"deployment_id": deploymentID,
-			"message":       "project deployment has been built successfully",
+			"message":       "project deployment started",
 		},
 	})
+}
+
+func (h *Handler) GetDeploymentLogs(c *gin.Context) {
+	userIDVal, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	userID, ok := userIDVal.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "something went wrong"})
+		return
+	}
+	projectID, deploymentID := c.Param("id"), c.Param("deploymentId")
+	if projectID == "" || deploymentID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	logs, err := h.service.GetDeploymentLogs(c.Request.Context(), projectID, deploymentID, userID)
+	if err != nil {
+		if errors.Is(err, ErrForbidden) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "you do not have permission to view these logs"})
+			return
+		}
+		if errors.Is(err, ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "deployment not found"})
+			return
+		}
+		slog.Error("failed to fetch deployment logs", "err", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "something went wrong, try again later"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "successful", "data": logs})
 }

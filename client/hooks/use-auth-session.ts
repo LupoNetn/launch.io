@@ -66,7 +66,7 @@ export function useAuthSession() {
     if (accessToken) {
       writeStorage(ACCESS_KEY, accessToken);
       if (refreshToken) writeStorage(REFRESH_KEY, refreshToken);
-      setToken(accessToken);
+      queueMicrotask(() => setToken(accessToken));
 
       // Clean URL fragment & search params while preserving pathname
       if (window.history.replaceState) {
@@ -78,10 +78,10 @@ export function useAuthSession() {
   // ── Load user profile whenever we have a token ────────────────────────────
   useEffect(() => {
     if (!token) {
-      setUser(null);
+      queueMicrotask(() => setUser(null));
       return;
     }
-    setUserLoading(true);
+    queueMicrotask(() => setUserLoading(true));
     getMe(token)
       .then((data) => {
         if (data && typeof data === 'object') {

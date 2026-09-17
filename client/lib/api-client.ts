@@ -1,5 +1,5 @@
 import { API_BASE_URL } from '@/lib/api';
-import type { ApiEnvelope, User, Project, Repository, Deployment } from '@/lib/types';
+import type { User, Project, Repository } from '@/lib/types';
 import { normalizeProject } from '@/lib/types';
 
 // ─── Error class ──────────────────────────────────────────────────────────────
@@ -15,10 +15,6 @@ export class ApiError extends Error {
 }
 
 // ─── Core fetch wrapper ───────────────────────────────────────────────────────
-
-function getBody(value: unknown): ApiEnvelope<unknown> {
-  return value && typeof value === 'object' ? (value as ApiEnvelope<unknown>) : {};
-}
 
 export async function apiRequest<T>(
   path: string,

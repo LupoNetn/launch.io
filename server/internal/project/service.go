@@ -23,6 +23,7 @@ type Service interface {
 	ListRepo(ctx context.Context, userID string) ([]GitHubRepo, error)
 	SelectRepo(ctx context.Context, userID string, req SelectProjectRequest) (string, error)
 	DeployRepo(ctx context.Context, projectID string, userID string) (string, error)
+	GetDeploymentLogs(ctx context.Context, projectID, deploymentID, userID string) ([]db.DeploymentLog, error)
 }
 
 type service struct {
@@ -171,29 +172,37 @@ func (s *service) DeployRepo(ctx context.Context, projectID, userID string) (str
 	if err != nil {
 		return "", err
 	}
-	if err := s.query.UpdateDeploymentStatus(ctx, db.UpdateDeploymentStatusParams{ID: deployment.ID, Status: db.DeploymentStatusBuilding}); err != nil {
-		return deployment.ID.String(), fmt.Errorf("failed to mark deployment as building: %w", err)
+	go s.runDeployment(context.Background(), deployment.ID, projectRecord)
+	return deployment.ID.String(), nil
+}
+
+func (s *service) runDeployment(ctx context.Context, deploymentID pgtype.UUID, projectRecord db.Project) {
+	if err := s.query.UpdateDeploymentStatus(ctx, db.UpdateDeploymentStatusParams{ID: deploymentID, Status: db.DeploymentStatusBuilding}); err != nil {
+		slog.Error("failed to mark deployment as building", "deployment_id", deploymentID.String(), "err", err)
+		return
 	}
-	imageTag, err := s.build.Build(ctx, deployment.ID.String(), projectRecord.GithubCloneUrl, projectRecord.DefaultBranch, func(line string) {
-		if logErr := s.query.AddDeploymentLogLine(ctx, db.AddDeploymentLogLineParams{DeploymentID: deployment.ID, Line: line}); logErr != nil {
-			slog.Error("failed to add deployment log line", "err", logErr)
+
+	onLogLine := func(line string) {
+		if err := s.query.AddDeploymentLogLine(ctx, db.AddDeploymentLogLineParams{DeploymentID: deploymentID, Line: line}); err != nil {
+			slog.Error("failed to persist log line", "deployment_id", deploymentID.String(), "err", err)
 		}
-	})
+	}
+	imageTag, err := s.build.Build(ctx, deploymentID.String(), projectRecord.GithubCloneUrl, projectRecord.DefaultBranch, onLogLine)
 	if err != nil {
-		_ = s.query.UpdateDeploymentStatus(ctx, db.UpdateDeploymentStatusParams{ID: deployment.ID, Status: db.DeploymentStatusFailed})
-		return deployment.ID.String(), fmt.Errorf("build failed: %w", err)
+		slog.Error("deployment build failed", "deployment_id", deploymentID.String(), "err", err)
+		_ = s.query.UpdateDeploymentStatus(ctx, db.UpdateDeploymentStatusParams{ID: deploymentID, Status: db.DeploymentStatusFailed})
+		return
 	}
-	if err := s.query.SetDeploymentImageTag(ctx, db.SetDeploymentImageTagParams{ID: deployment.ID, ImageTag: pgtype.Text{String: imageTag, Valid: true}}); err != nil {
-		_ = s.query.UpdateDeploymentStatus(ctx, db.UpdateDeploymentStatusParams{ID: deployment.ID, Status: db.DeploymentStatusFailed})
-		return deployment.ID.String(), fmt.Errorf("failed to set deployment image tag: %w", err)
+	if err := s.query.SetDeploymentImageTag(ctx, db.SetDeploymentImageTagParams{ID: deploymentID, ImageTag: pgtype.Text{String: imageTag, Valid: true}}); err != nil {
+		slog.Error("failed to persist deployment image", "deployment_id", deploymentID.String(), "err", err)
+		_ = s.query.UpdateDeploymentStatus(ctx, db.UpdateDeploymentStatusParams{ID: deploymentID, Status: db.DeploymentStatusFailed})
+		return
 	}
-	containerID, hostPort, err := s.run.Run(ctx, projectRecord.ID.String(), deployment.ID.String(), imageTag)
+	containerID, hostPort, err := s.run.Run(ctx, projectRecord.ID.String(), deploymentID.String(), imageTag)
 	if err != nil {
-		_ = s.query.UpdateDeploymentStatus(ctx, db.UpdateDeploymentStatusParams{ID: deployment.ID, Status: db.DeploymentStatusFailed})
-		return deployment.ID.String(), fmt.Errorf("failed to start deployment container: %w", err)
-	}
-	if err := s.query.UpdateDeploymentStatus(ctx, db.UpdateDeploymentStatusParams{ID: deployment.ID, Status: db.DeploymentStatusRunning}); err != nil {
-		return deployment.ID.String(), fmt.Errorf("failed to mark deployment as running: %w", err)
+		slog.Error("failed to start deployment container", "deployment_id", deploymentID.String(), "err", err)
+		_ = s.query.UpdateDeploymentStatus(ctx, db.UpdateDeploymentStatusParams{ID: deploymentID, Status: db.DeploymentStatusFailed})
+		return
 	}
 	if _, err := s.query.CreateProxyMapping(ctx, db.CreateProxyMappingParams{
 		ProjectID:    projectRecord.ID,
@@ -201,8 +210,45 @@ func (s *service) DeployRepo(ctx context.Context, projectID, userID string) (str
 		AssignedPort: pgtype.Text{String: fmt.Sprintf("%d", hostPort), Valid: true},
 		HealthStatus: db.NullHealthStatus{HealthStatus: db.HealthStatusActive, Valid: true},
 	}); err != nil {
-		_ = s.query.UpdateDeploymentStatus(ctx, db.UpdateDeploymentStatusParams{ID: deployment.ID, Status: db.DeploymentStatusFailed})
-		return deployment.ID.String(), fmt.Errorf("failed to create proxy mapping: %w", err)
+		slog.Error("failed to create proxy mapping", "deployment_id", deploymentID.String(), "err", err)
+		_ = s.query.UpdateDeploymentStatus(ctx, db.UpdateDeploymentStatusParams{ID: deploymentID, Status: db.DeploymentStatusFailed})
+		return
 	}
-	return deployment.ID.String(), nil
+	if err := s.query.UpdateDeploymentStatus(ctx, db.UpdateDeploymentStatusParams{ID: deploymentID, Status: db.DeploymentStatusRunning}); err != nil {
+		slog.Error("failed to mark deployment as running", "deployment_id", deploymentID.String(), "err", err)
+	}
+}
+
+func (s *service) GetDeploymentLogs(ctx context.Context, projectID, deploymentID, userID string) ([]db.DeploymentLog, error) {
+	var projectUUID, deploymentUUID, userUUID pgtype.UUID
+	if err := projectUUID.Scan(projectID); err != nil {
+		return nil, fmt.Errorf("invalid project id: %w", err)
+	}
+	if err := deploymentUUID.Scan(deploymentID); err != nil {
+		return nil, fmt.Errorf("invalid deployment id: %w", err)
+	}
+	if err := userUUID.Scan(userID); err != nil {
+		return nil, fmt.Errorf("invalid user id: %w", err)
+	}
+	projectRecord, err := s.query.SelectProjectByID(ctx, projectUUID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	if projectRecord.UserID.Bytes != userUUID.Bytes {
+		return nil, ErrForbidden
+	}
+	deployment, err := s.query.GetDeploymentByID(ctx, deploymentUUID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	if deployment.ProjectID.Bytes != projectUUID.Bytes {
+		return nil, ErrNotFound
+	}
+	return s.query.GetDeploymentLogLines(ctx, deploymentUUID)
 }

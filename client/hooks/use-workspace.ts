@@ -68,11 +68,13 @@ export function useWorkspace(token: string) {
   // ── Auto-load on mount / token change ────────────────────────────────────
   useEffect(() => {
     if (!token) {
-      setProjects([]);
-      setLoading(false);
+      queueMicrotask(() => {
+        setProjects([]);
+        setLoading(false);
+      });
       return;
     }
-    void loadWorkspace();
+    queueMicrotask(() => void loadWorkspace());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 

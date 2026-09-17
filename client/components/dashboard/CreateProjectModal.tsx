@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowRight, Check, Code2, Globe, Loader2, Rocket, Search, X } from 'lucide-react';
+import { ArrowRight, Code2, Globe, Loader2, Rocket, Search, X } from 'lucide-react';
 import { GithubIcon } from '@/components/icons/GithubIcon';
 import type { Repository } from '@/lib/types';
 import { useMemo, useState } from 'react';
@@ -124,7 +124,7 @@ export function CreateProjectModal({
                   ))
                 ) : (
                   <div className="py-14 text-center text-xs text-white/40">
-                    No repositories found matching "{query}".
+                    No repositories found matching &quot;{query}&quot;.
                   </div>
                 )}
               </div>

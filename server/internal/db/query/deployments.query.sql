@@ -2,6 +2,9 @@
 INSERT INTO deployments (project_id,status) VALUES ($1,$2)
 RETURNING *;
 
+-- name: GetDeploymentByID :one
+SELECT * FROM deployments WHERE id = $1;
+
 -- name: UpdateDeploymentStatus :exec
 UPDATE deployments
 SET status = $2, updated_at = now()

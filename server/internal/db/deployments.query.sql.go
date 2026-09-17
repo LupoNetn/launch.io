@@ -52,6 +52,27 @@ func (q *Queries) CreateDeployment(ctx context.Context, arg CreateDeploymentPara
 	return i, err
 }
 
+const getDeploymentByID = `-- name: GetDeploymentByID :one
+SELECT id, project_id, status, git_branch, image_tag, log_store_path, artifact_path, created_at, updated_at FROM deployments WHERE id = $1
+`
+
+func (q *Queries) GetDeploymentByID(ctx context.Context, id pgtype.UUID) (Deployment, error) {
+	row := q.db.QueryRow(ctx, getDeploymentByID, id)
+	var i Deployment
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.Status,
+		&i.GitBranch,
+		&i.ImageTag,
+		&i.LogStorePath,
+		&i.ArtifactPath,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getDeploymentLogLines = `-- name: GetDeploymentLogLines :many
 SELECT id, deployment_id, line, created_at FROM deployment_logs WHERE deployment_id = $1 ORDER BY created_at ASC
 `

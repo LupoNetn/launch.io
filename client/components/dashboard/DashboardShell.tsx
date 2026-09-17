@@ -10,6 +10,7 @@ import { ProjectView } from '@/components/dashboard/ProjectView';
 import { ProjectsHome } from '@/components/dashboard/ProjectsHome';
 import { useAuthSession } from '@/hooks/use-auth-session';
 import { useWorkspace } from '@/hooks/use-workspace';
+import { useDeploymentLogs } from '@/hooks/use-deployment-logs';
 import { githubLoginUrl } from '@/lib/api-client';
 import type { DashboardView, Repository } from '@/lib/types';
 
@@ -37,6 +38,7 @@ export default function DashboardShell() {
   const [deploymentId, setDeploymentId] = useState('');
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId) ?? null;
+  const deploymentLogs = useDeploymentLogs(token, selectedProjectId, deploymentId);
 
   const visibleProjects = useMemo(
     () =>
@@ -181,6 +183,7 @@ export default function DashboardShell() {
                 deploying={deploying}
                 deployMessage={deployMessage}
                 deploymentId={deploymentId}
+                deploymentLogs={deploymentLogs}
                 error={error}
                 onDeploy={handleDeploy}
                 onBack={() => setSelectedProjectId('')}

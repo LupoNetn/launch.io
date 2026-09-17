@@ -30,7 +30,7 @@ func LoadConfig() (*Config, error) {
 		GitHubClientID:     extractKey("GITHUB_CLIENT_ID", ""),
 		GitHubClientSecret: extractKey("GITHUB_CLIENT_SECRET", ""),
 		GitHubRedirectURI:  extractKey("GITHUB_REDIRECT_URI", "http://localhost:8080/auth/github/callback"),
-		ClientOrigin:       extractKey("CLIENT_ORIGIN", "https://verbose-adventure-q79gw5wj6qrph47v7-3000.app.github.dev"),
+		ClientOrigin:       extractKey("CLIENT_ORIGIN", "http://localhost:3000"),
 	}
 
 	// Validate required configuration

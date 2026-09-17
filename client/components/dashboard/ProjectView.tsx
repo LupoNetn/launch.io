@@ -16,6 +16,7 @@ import { GithubIcon } from '@/components/icons/GithubIcon';
 import type { DashboardView, Project } from '@/lib/types';
 import { generateSubdomain } from '@/lib/types';
 import { ProjectOverview } from '@/components/dashboard/ProjectOverview';
+import type { DeploymentLog } from '@/hooks/use-deployment-logs';
 
 interface ProjectViewProps {
   project: Project;
@@ -23,6 +24,7 @@ interface ProjectViewProps {
   deploying: boolean;
   deployMessage: string;
   deploymentId: string;
+  deploymentLogs: { logs: DeploymentLog[]; loading: boolean; error: string };
   error: string;
   onDeploy: () => void;
   onBack: () => void;
@@ -34,6 +36,7 @@ export function ProjectView({
   deploying,
   deployMessage,
   deploymentId,
+  deploymentLogs,
   error,
   onDeploy,
   onBack,
@@ -147,11 +150,7 @@ export function ProjectView({
           />
         )}
         {view === 'logs' && (
-          <PlaceholderPanel
-            icon={TerminalSquare}
-            title="Deployment Logs"
-            description="Build and runtime output logs are archived per deployment. Stream live logs from your active deployments."
-          />
+          <LogsPanel deploymentId={deploymentId} logs={deploymentLogs.logs} loading={deploymentLogs.loading} />
         )}
         {view === 'environment' && (
           <PlaceholderPanel
@@ -162,6 +161,28 @@ export function ProjectView({
         )}
         {view === 'settings' && <SettingsPanel project={project} />}
       </div>
+    </div>
+  );
+}
+
+function LogsPanel({ deploymentId, logs, loading }: { deploymentId: string; logs: DeploymentLog[]; loading: boolean }) {
+  return (
+    <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#080910]">
+      <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+        <div>
+          <h2 className="text-sm font-bold text-white">Deployment Logs</h2>
+          <p className="mt-1 text-xs text-white/40">
+            {deploymentId ? `Deployment ${deploymentId.slice(0, 8)} · polling every second` : 'Deploy a project to watch build output.'}
+          </p>
+        </div>
+        <span className={`flex items-center gap-2 text-xs ${loading ? 'text-amber-300' : 'text-emerald-300'}`}>
+          <span className={`h-2 w-2 rounded-full ${loading ? 'animate-pulse bg-amber-300' : 'bg-emerald-300'}`} />
+          {loading ? 'Building' : 'Ready'}
+        </span>
+      </div>
+      <pre className="max-h-[520px] min-h-[300px] overflow-auto p-5 font-mono text-xs leading-6 text-white/70">
+        {logs.length ? logs.map((log) => <div key={log.id}><span className="mr-3 select-none text-white/25">{String(log.id).padStart(4, '0')}</span>{log.line}</div>) : <span className="text-white/30">{loading ? 'Waiting for build output...' : 'No logs yet.'}</span>}
+      </pre>
     </div>
   );
 }
