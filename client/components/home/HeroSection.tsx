@@ -3,9 +3,9 @@
 import { useState, useEffect } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { GithubIcon } from '@/components/icons/GithubIcon';
-import { API_BASE_URL } from '@/lib/api';
+import { githubLoginUrl } from '@/lib/api-client';
 
-const WORDS = ['deploy', 'push', 'create'];
+const WORDS = ['deploy', 'push', 'launch'];
 
 export default function HeroSection() {
   const [wordIndex, setWordIndex] = useState(0);
@@ -19,7 +19,6 @@ export default function HeroSection() {
         setFade(true);
       }, 250);
     }, 2400);
-
     return () => clearInterval(timer);
   }, []);
 
@@ -32,10 +31,7 @@ export default function HeroSection() {
             className={`inline-block min-w-[90px] transform bg-gradient-to-r from-blue-400 via-indigo-300 to-emerald-300 bg-clip-text text-center text-transparent transition-all duration-300 sm:min-w-[150px] ${
               fade ? 'translate-y-0 opacity-100' : '-translate-y-2 opacity-0'
             }`}
-            style={{
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-            }}
+            style={{ WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}
           >
             {WORDS[wordIndex]}
           </span>
@@ -50,7 +46,7 @@ export default function HeroSection() {
 
       <div className="flex w-full flex-col items-center justify-center gap-4 sm:flex-row">
         <a
-          href={`${API_BASE_URL}/auth/github/login`}
+          href={githubLoginUrl()}
           className="flex h-13 w-full items-center justify-center gap-3 rounded-full bg-white px-8 text-sm font-semibold text-black shadow-[0_0_35px_rgba(255,255,255,0.22)] transition-all hover:scale-[1.02] hover:bg-neutral-100 active:scale-[0.98] sm:w-auto sm:text-base"
         >
           <GithubIcon className="h-5 w-5 fill-current" />
