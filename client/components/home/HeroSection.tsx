@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { ArrowRight } from "lucide-react";
-import { GithubIcon } from "@/components/icons/GithubIcon";
-import { API_BASE_URL } from "@/lib/api";
+import { useState, useEffect } from 'react';
+import { ArrowRight } from 'lucide-react';
+import { GithubIcon } from '@/components/icons/GithubIcon';
+import { API_BASE_URL } from '@/lib/api';
 
-const WORDS = ["deploy", "push", "create"];
+const WORDS = ['deploy', 'push', 'create'];
 
 export default function HeroSection() {
   const [wordIndex, setWordIndex] = useState(0);
@@ -24,36 +24,38 @@ export default function HeroSection() {
   }, []);
 
   return (
-    <section className="pt-36 sm:pt-44 pb-16 sm:pb-24 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto flex flex-col items-center text-center">
-      <h1 className="text-3xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight mb-8 text-white max-w-5xl leading-[1.18]">
-        Effortlessly{" "}
-        <span className="inline-flex items-center px-3 sm:px-5 py-0.5 sm:py-1 my-1 rounded-2xl bg-white/[0.08] border border-white/15 shadow-sm">
+    <section className="mx-auto flex max-w-6xl flex-col items-center px-4 pt-36 pb-16 text-center sm:px-6 sm:pt-44 sm:pb-24 lg:px-8">
+      <h1 className="mb-8 max-w-5xl text-3xl leading-[1.18] font-extrabold tracking-tight text-white sm:text-6xl lg:text-7xl">
+        Effortlessly{' '}
+        <span className="my-1 inline-flex items-center rounded-2xl border border-white/15 bg-white/[0.08] px-3 py-0.5 shadow-sm sm:px-5 sm:py-1">
           <span
-            className={`inline-block min-w-[90px] sm:min-w-[150px] text-center transition-all duration-300 transform bg-gradient-to-r from-blue-400 via-indigo-300 to-emerald-300 bg-clip-text text-transparent ${
-              fade
-                ? "opacity-100 translate-y-0"
-                : "opacity-0 -translate-y-2"
+            className={`inline-block min-w-[90px] transform bg-gradient-to-r from-blue-400 via-indigo-300 to-emerald-300 bg-clip-text text-center text-transparent transition-all duration-300 sm:min-w-[150px] ${
+              fade ? 'translate-y-0 opacity-100' : '-translate-y-2 opacity-0'
             }`}
             style={{
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
             }}
           >
             {WORDS[wordIndex]}
           </span>
-        </span>{" "}
+        </span>{' '}
         full-stack apps to the global edge.
       </h1>
-      
-      <p className="text-base sm:text-lg md:text-xl text-white/55 max-w-2xl mb-10 font-normal leading-relaxed">
-        Connect your repository and launch instantly. Autonomous builds, preview deployments, and zero-downtime edge distribution out of the box.
+
+      <p className="mb-10 max-w-2xl text-base leading-relaxed font-normal text-white/55 sm:text-lg md:text-xl">
+        Connect your repository and launch instantly. Autonomous builds, preview
+        deployments, and zero-downtime edge distribution out of the box.
       </p>
 
-      <div className="flex flex-col sm:flex-row items-center gap-4 w-full justify-center">
-        <a href={`${API_BASE_URL}/auth/github/login`} className="w-full sm:w-auto h-13 px-8 rounded-full bg-white text-black font-semibold hover:bg-neutral-100 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-[0_0_35px_rgba(255,255,255,0.22)] flex items-center justify-center gap-3 text-sm sm:text-base">
-          <GithubIcon className="w-5 h-5 fill-current" />
+      <div className="flex w-full flex-col items-center justify-center gap-4 sm:flex-row">
+        <a
+          href={`${API_BASE_URL}/auth/github/login`}
+          className="flex h-13 w-full items-center justify-center gap-3 rounded-full bg-white px-8 text-sm font-semibold text-black shadow-[0_0_35px_rgba(255,255,255,0.22)] transition-all hover:scale-[1.02] hover:bg-neutral-100 active:scale-[0.98] sm:w-auto sm:text-base"
+        >
+          <GithubIcon className="h-5 w-5 fill-current" />
           Continue with GitHub
-          <ArrowRight className="w-4 h-4 text-neutral-600" />
+          <ArrowRight className="h-4 w-4 text-neutral-600" />
         </a>
       </div>
     </section>

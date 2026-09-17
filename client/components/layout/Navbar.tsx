@@ -1,39 +1,54 @@
-import { Zap } from "lucide-react";
-import { GithubIcon } from "@/components/icons/GithubIcon";
-import { API_BASE_URL } from "@/lib/api";
+import { Zap } from 'lucide-react';
+import { GithubIcon } from '@/components/icons/GithubIcon';
+import { API_BASE_URL } from '@/lib/api';
 
 export default function Navbar() {
   return (
-    <div className="fixed top-0 w-full z-50">
+    <div className="fixed top-0 z-50 w-full">
       {/* Navigation Header */}
       <nav className="border-b border-white/[0.06] bg-[#05050A]/80 backdrop-blur-2xl">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-white flex items-center justify-center shadow-[0_0_15px_rgba(255,255,255,0.3)]">
-              <Zap className="w-4 h-4 text-black fill-black" />
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white shadow-[0_0_15px_rgba(255,255,255,0.3)]">
+              <Zap className="h-4 w-4 fill-black text-black" />
             </div>
-            <span className="font-bold tracking-tight text-white text-lg">launch.io</span>
+            <span className="text-lg font-bold tracking-tight text-white">
+              launch.io
+            </span>
           </div>
-          
-          <div className="hidden md:flex items-center gap-8 text-sm font-medium text-white/60">
-            <a href="#features" className="hover:text-white transition-colors">Features</a>
-            <a href="#workflow" className="hover:text-white transition-colors">Workflow</a>
-            <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
-            <a href="#docs" className="hover:text-white transition-colors">Documentation</a>
+
+          <div className="hidden items-center gap-8 text-sm font-medium text-white/60 md:flex">
+            <a href="#features" className="transition-colors hover:text-white">
+              Features
+            </a>
+            <a href="#workflow" className="transition-colors hover:text-white">
+              Workflow
+            </a>
+            <a href="#pricing" className="transition-colors hover:text-white">
+              Pricing
+            </a>
+            <a href="#docs" className="transition-colors hover:text-white">
+              Documentation
+            </a>
           </div>
 
           <div className="flex items-center gap-4">
-            <a href={`${API_BASE_URL}/auth/github/login`} className="h-9 px-3.5 sm:px-4 rounded-full bg-white text-black text-xs sm:text-sm font-semibold hover:bg-neutral-200 transition-all flex items-center gap-1.5 sm:gap-2 shadow-md shadow-white/10 active:scale-95 whitespace-nowrap">
-              <GithubIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span><span className="hidden sm:inline">Continue with </span>GitHub</span>
+            <a
+              href={`${API_BASE_URL}/auth/github/login`}
+              className="flex h-9 items-center gap-1.5 rounded-full bg-white px-3.5 text-xs font-semibold whitespace-nowrap text-black shadow-md shadow-white/10 transition-all hover:bg-neutral-200 active:scale-95 sm:gap-2 sm:px-4 sm:text-sm"
+            >
+              <GithubIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span>
+                <span className="hidden sm:inline">Continue with </span>GitHub
+              </span>
             </a>
           </div>
         </div>
       </nav>
 
       {/* Banner beneath Navbar */}
-      <div className="w-full bg-gradient-to-r from-indigo-500/10 via-purple-500/15 to-emerald-500/10 border-b border-white/[0.08] bg-[#05050A]/90 backdrop-blur-xl py-2 px-4 text-center text-xs sm:text-sm font-medium text-white/90 flex items-center justify-center gap-2 shadow-sm">
-        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+      <div className="flex w-full items-center justify-center gap-2 border-b border-white/[0.08] bg-[#05050A]/90 bg-gradient-to-r from-indigo-500/10 via-purple-500/15 to-emerald-500/10 px-4 py-2 text-center text-xs font-medium text-white/90 shadow-sm backdrop-blur-xl sm:text-sm">
+        <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400"></span>
         <span>launch.io coming soon</span>
       </div>
     </div>

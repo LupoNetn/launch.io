@@ -1,0 +1,4 @@
+import { CircleHelp } from 'lucide-react';
+import type { User } from '@/lib/types';
+
+export function DashboardTopbar({ projectName, user }: { projectName: string; user: User | null }) { return <header className="flex h-[72px] items-center justify-between border-b border-white/[0.07] px-5 sm:px-8"><div className="hidden items-center gap-2 text-sm text-white/35 sm:flex"><span>Workspace</span><span>/</span><span className="text-white/80">{projectName || 'Projects'}</span></div><div className="ml-auto flex items-center gap-3"><button title="Help" className="grid h-9 w-9 place-items-center rounded-lg text-white/40 hover:bg-white/[0.06] hover:text-white"><CircleHelp className="h-4 w-4" /></button><div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-orange-300 to-rose-500 text-xs font-bold text-[#1a0e0b]">{user?.name?.slice(0, 1).toUpperCase() ?? 'U'}</div></div></header>; }
