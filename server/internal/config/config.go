@@ -15,6 +15,7 @@ type Config struct {
 	GitHubClientID     string
 	GitHubClientSecret string
 	GitHubRedirectURI  string
+	ClientOrigin       string
 }
 
 func LoadConfig() (*Config, error) {
@@ -29,6 +30,7 @@ func LoadConfig() (*Config, error) {
 		GitHubClientID:     extractKey("GITHUB_CLIENT_ID", ""),
 		GitHubClientSecret: extractKey("GITHUB_CLIENT_SECRET", ""),
 		GitHubRedirectURI:  extractKey("GITHUB_REDIRECT_URI", "http://localhost:8080/auth/github/callback"),
+		ClientOrigin:       extractKey("CLIENT_ORIGIN", "https://verbose-adventure-q79gw5wj6qrph47v7-3000.app.github.dev"),
 	}
 
 	// Validate required configuration

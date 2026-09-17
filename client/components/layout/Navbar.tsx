@@ -1,5 +1,6 @@
 import { Zap } from "lucide-react";
 import { GithubIcon } from "@/components/icons/GithubIcon";
+import { API_BASE_URL } from "@/lib/api";
 
 export default function Navbar() {
   return (
@@ -22,10 +23,10 @@ export default function Navbar() {
           </div>
 
           <div className="flex items-center gap-4">
-            <button className="h-9 px-3.5 sm:px-4 rounded-full bg-white text-black text-xs sm:text-sm font-semibold hover:bg-neutral-200 transition-all flex items-center gap-1.5 sm:gap-2 shadow-md shadow-white/10 active:scale-95 whitespace-nowrap">
+            <a href={`${API_BASE_URL}/auth/github/login`} className="h-9 px-3.5 sm:px-4 rounded-full bg-white text-black text-xs sm:text-sm font-semibold hover:bg-neutral-200 transition-all flex items-center gap-1.5 sm:gap-2 shadow-md shadow-white/10 active:scale-95 whitespace-nowrap">
               <GithubIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span><span className="hidden sm:inline">Continue with </span>GitHub</span>
-            </button>
+            </a>
           </div>
         </div>
       </nav>

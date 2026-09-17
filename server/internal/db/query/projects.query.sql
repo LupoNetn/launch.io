@@ -12,3 +12,6 @@ RETURNING *;
 
 -- name: SelectProjectByID :one
 SELECT * FROM projects WHERE id = $1;
+
+-- name: ListProjectsByUserID :many
+SELECT * FROM projects WHERE user_id = $1 ORDER BY updated_at DESC;

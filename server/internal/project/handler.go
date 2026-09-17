@@ -18,6 +18,26 @@ type Handler struct {
 	service Service
 }
 
+func (h *Handler) ListProjects(c *gin.Context) {
+	userIDVal, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	userID, ok := userIDVal.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "something went wrong"})
+		return
+	}
+	projects, err := h.service.ListProjects(c.Request.Context(), userID)
+	if err != nil {
+		slog.Error("failed to list projects", "err", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "something went wrong, try again later"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "successful", "data": projects})
+}
+
 func NewHandler(service Service) *Handler {
 	return &Handler{
 		service: service,

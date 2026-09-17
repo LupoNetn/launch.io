@@ -19,6 +19,7 @@ import (
 )
 
 type Service interface {
+	ListProjects(ctx context.Context, userID string) ([]db.Project, error)
 	ListRepo(ctx context.Context, userID string) ([]GitHubRepo, error)
 	SelectRepo(ctx context.Context, userID string, req SelectProjectRequest) (string, error)
 	DeployRepo(ctx context.Context, projectID string, userID string) (string, error)
@@ -40,6 +41,14 @@ func NewService(query *db.Queries, authService auth.Service, buildEngine build.B
 		run:    containerOrchestrator,
 		client: http.Client{Timeout: 25 * time.Second},
 	}
+}
+
+func (s *service) ListProjects(ctx context.Context, userID string) ([]db.Project, error) {
+	userUUID := pgtype.UUID{}
+	if err := userUUID.Scan(userID); err != nil {
+		return nil, fmt.Errorf("invalid user id: %w", err)
+	}
+	return s.query.ListProjectsByUserID(ctx, userUUID)
 }
 
 func (s *service) ListRepo(ctx context.Context, userID string) ([]GitHubRepo, error) {

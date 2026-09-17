@@ -57,6 +57,42 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 	return i, err
 }
 
+const listProjectsByUserID = `-- name: ListProjectsByUserID :many
+SELECT id, user_id, name, active_deployment_id, created_at, updated_at, github_full_name, github_clone_url, default_branch, port, github_webhook_id FROM projects WHERE user_id = $1 ORDER BY updated_at DESC
+`
+
+func (q *Queries) ListProjectsByUserID(ctx context.Context, userID pgtype.UUID) ([]Project, error) {
+	rows, err := q.db.Query(ctx, listProjectsByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Project
+	for rows.Next() {
+		var i Project
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Name,
+			&i.ActiveDeploymentID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.GithubFullName,
+			&i.GithubCloneUrl,
+			&i.DefaultBranch,
+			&i.Port,
+			&i.GithubWebhookID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const selectProjectByID = `-- name: SelectProjectByID :one
 SELECT id, user_id, name, active_deployment_id, created_at, updated_at, github_full_name, github_clone_url, default_branch, port, github_webhook_id FROM projects WHERE id = $1
 `

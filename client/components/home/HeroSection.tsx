@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { ArrowRight } from "lucide-react";
 import { GithubIcon } from "@/components/icons/GithubIcon";
+import { API_BASE_URL } from "@/lib/api";
 
 const WORDS = ["deploy", "push", "create"];
 
@@ -49,11 +50,11 @@ export default function HeroSection() {
       </p>
 
       <div className="flex flex-col sm:flex-row items-center gap-4 w-full justify-center">
-        <button className="w-full sm:w-auto h-13 px-8 rounded-full bg-white text-black font-semibold hover:bg-neutral-100 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-[0_0_35px_rgba(255,255,255,0.22)] flex items-center justify-center gap-3 text-sm sm:text-base">
+        <a href={`${API_BASE_URL}/auth/github/login`} className="w-full sm:w-auto h-13 px-8 rounded-full bg-white text-black font-semibold hover:bg-neutral-100 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-[0_0_35px_rgba(255,255,255,0.22)] flex items-center justify-center gap-3 text-sm sm:text-base">
           <GithubIcon className="w-5 h-5 fill-current" />
           Continue with GitHub
           <ArrowRight className="w-4 h-4 text-neutral-600" />
-        </button>
+        </a>
       </div>
     </section>
   );

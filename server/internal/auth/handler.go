@@ -4,17 +4,20 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"net/http"
+	"net/url"
 
 	"github.com/gin-gonic/gin"
 )
 
 type Handler struct {
-	service Service
+	service      Service
+	clientOrigin string
 }
 
-func NewHandler(service Service) *Handler {
+func NewHandler(service Service, clientOrigin string) *Handler {
 	return &Handler{
-		service: service,
+		service:      service,
+		clientOrigin: clientOrigin,
 	}
 }
 
@@ -54,7 +57,8 @@ func (h *Handler) GitHubCallback(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, resp)
+	redirectURL := h.clientOrigin + "/dashboard#access_token=" + url.QueryEscape(resp.AccessToken) + "&refresh_token=" + url.QueryEscape(resp.RefreshToken)
+	c.Redirect(http.StatusFound, redirectURL)
 }
 
 func (h *Handler) Refresh(c *gin.Context) {

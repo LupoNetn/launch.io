@@ -20,6 +20,20 @@ import (
 
 func (a *App) CreateRouter() *gin.Engine {
 	router := gin.Default()
+	router.Use(func(c *gin.Context) {
+		origin := c.GetHeader("Origin")
+		if origin == a.Config.ClientOrigin {
+			c.Header("Access-Control-Allow-Origin", origin)
+			c.Header("Access-Control-Allow-Headers", "Authorization, Content-Type")
+			c.Header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			c.Header("Vary", "Origin")
+		}
+		if c.Request.Method == http.MethodOptions {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+		c.Next()
+	})
 
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
@@ -33,7 +47,7 @@ func (a *App) CreateRouter() *gin.Engine {
 
 func (a *App) SetupRoutes(router *gin.Engine, query *db.Queries) error {
 	authService := auth.NewService(query, a.Config)
-	authHandler := auth.NewHandler(authService)
+	authHandler := auth.NewHandler(authService, a.Config.ClientOrigin)
 	auth.RegisterRoutes(router, authHandler, a.Config.JWTAccessSecret)
 
 	buildEngine := build.NewBuildEngine(query)
